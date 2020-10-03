@@ -1435,7 +1435,471 @@ SELECT app_name, country FROM apps
 WHERE id=1;
 ```
 
+# SQL 约束（Constraints）
 
+SQL 约束用于规定表中的数据规则。
+
+如果存在违反约束的数据行为，行为会被约束终止。
+
+约束可以在创建表时规定（通过 CREATE TABLE 语句），或者在表创建之后规定（通过 ALTER TABLE 语句）。
+
+## SQL CREATE TABLE + CONSTRAINT 语法
+
+```sql
+CREATE TABLE table_name
+ (
+column_name1 data_type(size) constraint_name,
+column_name2 data_type(size) constraint_name,
+column_name3 data_type(size) constraint_name,
+ ....
+);
+```
+
+在 SQL 中，我们有如下约束：
+
+- **NOT NULL** - 指示某列不能存储 NULL 值。
+- **UNIQUE** - 保证某列的每行必须有唯一的值。
+- **PRIMARY KEY** - NOT NULL 和 UNIQUE 的结合。确保某列（或两个列多个列的结合）有唯一标识，有助于更容易更快速地找到表中的一个特定的记录。
+- **FOREIGN KEY** - 保证一个表中的数据匹配另一个表中的值的参照完整性。
+- **CHECK** - 保证列中的值符合指定的条件。
+- **DEFAULT** - 规定没有给列赋值时的默认值。
+
+在下面的章节，我们会详细讲解每一种约束。
+
+# SQL NOT NULL 约束
+
+NOT NULL 约束强制列不接受 NULL 值。
+
+NOT NULL 约束强制字段始终包含值。这意味着，如果不向字段添加值，就无法插入新记录或者更新记录。
+
+下面的 SQL 强制 "ID" 列、 "LastName" 列以及 "FirstName" 列不接受 NULL 值：
+
+## 实例
+
+```sql
+CREATE TABLE Persons (    
+    ID int NOT NULL,    
+    LastName varchar(255) NOT NULL,    
+    FirstName varchar(255) NOT NULL,    
+    Age int 
+);
+```
+
+## 添加 NOT NULL 约束
+
+在一个已创建的表的 "Age" 字段中添加 NOT NULL 约束如下所示：
+
+### 实例
+
+```sql
+ALTER TABLE Persons MODIFY Age int NOT NULL;
+```
+
+## 删除 NOT NULL 约束
+
+在一个已创建的表的 "Age" 字段中删除 NOT NULL 约束如下所示：
+
+### 实例
+
+```sql
+ALTER TABLE Persons MODIFY Age int NULL;
+```
+
+# SQL UNIQUE 约束
+
+UNIQUE 约束唯一标识数据库表中的每条记录。
+
+UNIQUE 和 PRIMARY KEY 约束均为列或列集合提供了唯一性的保证。
+
+PRIMARY KEY 约束拥有自动定义的 UNIQUE 约束。
+
+请注意，每个表可以有多个 UNIQUE 约束，但是每个表只能有一个 PRIMARY KEY 约束。
+
+------
+
+## CREATE TABLE 时的 SQL UNIQUE 约束
+
+下面的 SQL 在 "Persons" 表创建时在 "P_Id" 列上创建 UNIQUE 约束：
+
+**MySQL：**
+
+```sql
+CREATE TABLE Persons
+ (
+ P_Id int NOT NULL,
+ LastName varchar(255) NOT NULL, 
+ FirstName varchar(255),
+ Address varchar(255),
+ City varchar(255),
+ Age int UNIQUE, 
+ -- 也可以在最后添加 UNIQUE (Age)
+ )
+```
+
+如需命名 UNIQUE 约束，并定义多个列的 UNIQUE 约束，请使用下面的 SQL 语法：
+
+**MySQL / SQL Server / Oracle / MS Access：**
+
+```sql
+CREATE TABLE Persons
+ (
+ P_Id int NOT NULL,
+ LastName varchar(255) NOT NULL,
+ FirstName varchar(255),
+ Address varchar(255),
+ City varchar(255),
+ CONSTRAINT uc_PersonID UNIQUE (P_Id,LastName)
+ )
+```
+
+------
+
+## ALTER TABLE 时的 SQL UNIQUE 约束
+
+当表已被创建时，如需在 "P_Id" 列创建 UNIQUE 约束，请使用下面的 SQL：
+
+**MySQL / SQL Server / Oracle / MS Access：**
+
+```sql
+ALTER TABLE Persons
+ADD UNIQUE (P_Id) -- 如果需要多列参考创建的时候的语法 
+```
+
+------
+
+## 撤销 UNIQUE 约束
+
+如需撤销 UNIQUE 约束，请使用下面的 SQL：
+
+```sql
+ALTER TABLE Persons
+DROP INDEX uc_PersonID -- DROP CONSTRAINT uc_PersonID
+```
+
+# SQL PRIMARY KEY 约束
+
+PRIMARY KEY 约束唯一标识数据库表中的每条记录。
+
+主键必须包含唯一的值。
+
+主键列不能包含 NULL 值。
+
+每个表都应该有一个主键，并且每个表只能有一个主键。
+
+------
+
+## CREATE TABLE 时的 SQL PRIMARY KEY 约束
+
+下面的 SQL 在 "Persons" 表创建时在 "P_Id" 列上创建 PRIMARY KEY 约束：
+
+**MySQL：**
+
+```sql
+CREATE TABLE Persons
+ (
+ P_Id int NOT NULL PRIMARY KEY,
+ LastName varchar(255) NOT NULL,
+ FirstName varchar(255),
+ Address varchar(255),
+ City varchar(255),
+ -- PRIMARY KEY (P_Id)
+ )
+```
+
+如需命名 PRIMARY KEY 约束，并定义多个列的 PRIMARY KEY 约束（联合主键），请使用下面的 SQL 语法：
+
+```sql
+CREATE TABLE Persons
+ (
+ P_Id int NOT NULL,
+ LastName varchar(255) NOT NULL,
+ FirstName varchar(255),
+ Address varchar(255),
+ City varchar(255),
+ CONSTRAINT pk_PersonID PRIMARY KEY (P_Id,LastName)
+ )
+```
+
+**注释：**在上面的实例中，只有一个主键 PRIMARY KEY（pk_PersonID）。然而，pk_PersonID 的值是由两个列（P_Id 和  LastName）组成的。
+
+------
+
+## ALTER TABLE 时的 SQL PRIMARY KEY 约束
+
+当表已被创建时，如需在 "P_Id" 列创建 PRIMARY KEY 约束，请使用下面的 SQL：
+
+**MySQL / SQL Server / Oracle / MS Access：**
+
+```sql
+ALTER TABLE Persons
+ADD PRIMARY KEY (P_Id) 
+-- 多列的情况 ADD CONSTRAINT pk_PersonID PRIMARY KEY (P_Id,LastName)
+```
+
+**注释：**如果您使用 ALTER TABLE 语句添加主键，必须把主键列声明为不包含 NULL 值（在表首次创建时）。 
+
+------
+
+## 撤销 PRIMARY KEY 约束
+
+如需撤销 PRIMARY KEY 约束，请使用下面的 SQL：
+
+**MySQL：**
+
+```sql
+ALTER TABLE Persons
+DROP PRIMARY KEY
+```
+
+**SQL Server / Oracle / MS Access：**
+
+```sql
+ALTER TABLE Persons
+DROP CONSTRAINT pk_PersonID
+```
+
+# SQL FOREIGN KEY 约束
+
+FOREIGN KEY 约束用于预防破坏表之间连接的行为。
+
+FOREIGN KEY 约束也能防止非法数据插入外键列，因为它必须是它指向的那个表中的值之一。
+
+------
+
+## CREATE TABLE 时的 SQL FOREIGN KEY 约束
+
+在创建表的时候指定外键约束
+
+```sql
+CREATE TABLE 表名
+    (
+        column1 datatype null/not null,
+        column2 datatype null/not null,
+        ...
+        CONSTRAINT 外键约束名 FOREIGN KEY  (column1,column2,... column_n) 
+        REFERENCES 外键依赖的表 (column1,column2,...column_n)
+        ON DELETE CASCADE--级联删除
+    );
+```
+
+------
+
+## ALTER TABLE 时的 SQL FOREIGN KEY 约束
+
+在创建表后增加外键约束
+
+```sql
+ALTER TABLE 表名
+    ADD CONSTRAINT 外键约束名
+    FOREIGN KEY (column1, column2,...column_n) 
+    REFERENCES 外键所依赖的表 (column1,column2,...column_n)
+    ON DELETE CASCADE;--级联删除
+```
+
+------
+
+## 撤销 FOREIGN KEY 约束
+
+如需撤销 FOREIGN KEY 约束，请使用下面的 SQL：
+
+**MySQL：**
+
+```sql
+ALTER TABLE 表名
+DROP FOREIGN KEY 外键约束名
+```
+
+**SQL Server / Oracle / MS Access：**
+
+```sql
+ALTER TABLE 表名
+DROP CONSTRAINT 外键约束名
+```
+
+注意，在创建外键约束时，必须先创建外键约束所依赖的表，并且该列为该表的主键
+
+# SQL CHECK 约束
+
+**CHECK 约束用于限制列中的值的范围。**
+
+如果对单个列定义 CHECK 约束，那么该列只允许特定的值。
+
+如果对一个表定义 CHECK 约束，那么此约束会基于行中其他列的值在特定的列中对值进行限制。
+
+------
+
+## CREATE TABLE 时的 SQL CHECK 约束
+
+下面的 SQL 在 "Persons" 表创建时在 "P_Id" 列上创建 CHECK 约束。CHECK 约束规定 "P_Id" 列必须只包含大于 0 的整数。
+
+**MySQL：**
+
+```sql
+CREATE TABLE Persons
+ (
+ P_Id int NOT NULL,
+ LastName varchar(255) NOT NULL,
+ FirstName varchar(255),
+ Address varchar(255),
+ City varchar(255),
+ CHECK (P_Id>0)
+ )
+```
+
+**SQL Server / Oracle / MS Access：**
+
+```sql
+CREATE TABLE Persons
+ (
+ P_Id int NOT NULL CHECK (P_Id>0),
+ LastName varchar(255) NOT NULL,
+ FirstName varchar(255),
+ Address varchar(255),
+ City varchar(255)
+ )
+```
+
+如需命名 CHECK 约束，并定义多个列的 CHECK 约束，请使用下面的 SQL 语法：
+
+**MySQL / SQL Server / Oracle / MS Access：**
+
+```sql
+CREATE TABLE Persons
+ (
+ P_Id int NOT NULL,
+ LastName varchar(255) NOT NULL,
+ FirstName varchar(255),
+ Address varchar(255),
+ City varchar(255),
+ CONSTRAINT chk_Person CHECK (P_Id>0 AND City='Sandnes')
+ )
+```
+
+------
+
+## ALTER TABLE 时的 SQL CHECK 约束
+
+当表已被创建时，如需在 "P_Id" 列创建 CHECK 约束，请使用下面的 SQL：
+
+**MySQL / SQL Server / Oracle / MS Access:**
+
+```sql
+ALTER TABLE Persons
+ ADD CHECK (P_Id>0)
+```
+
+如需命名 CHECK 约束，并定义多个列的 CHECK 约束，请使用下面的 SQL 语法：
+
+**MySQL / SQL Server / Oracle / MS Access：**
+
+```sql
+ALTER TABLE Persons
+ ADD CONSTRAINT chk_Person CHECK (P_Id>0 AND City='Sandnes')
+```
+
+------
+
+## 撤销 CHECK 约束
+
+如需撤销 CHECK 约束，请使用下面的 SQL：
+
+**SQL Server / Oracle / MS Access：**
+
+```sql
+ALTER TABLE Persons
+ DROP CONSTRAINT chk_Person
+```
+
+**MySQL：**
+
+```sql
+ALTER TABLE Persons
+ DROP CHECK chk_Person
+```
+
+# SQL DEFAULT 约束
+
+DEFAULT 约束用于向列中插入默认值。
+
+如果没有规定其他的值，那么会将默认值添加到所有的新记录。
+
+------
+
+## CREATE TABLE 时的 SQL DEFAULT 约束
+
+下面的 SQL 在 "Persons" 表创建时在 "City" 列上创建 DEFAULT 约束：
+
+**My SQL / SQL Server / Oracle / MS Access：**
+
+```sql
+CREATE TABLE Persons
+(
+    P_Id int NOT NULL,
+    LastName varchar(255) NOT NULL,
+    FirstName varchar(255),
+    Address varchar(255),
+    City varchar(255) DEFAULT 'Sandnes'
+)
+```
+
+通过使用类似 GETDATE() 这样的函数，DEFAULT 约束也可以用于插入系统值：
+
+```sql
+CREATE TABLE Orders
+(
+    O_Id int NOT NULL,
+    OrderNo int NOT NULL,
+    P_Id int,
+    OrderDate date DEFAULT GETDATE()
+)
+```
+
+------
+
+## ALTER TABLE 时的 SQL DEFAULT 约束
+
+当表已被创建时，如需在 "City" 列创建 DEFAULT 约束，请使用下面的 SQL：
+
+**MySQL：**
+
+```sql
+ALTER TABLE Persons
+ALTER City SET DEFAULT 'SANDNES'
+```
+
+**SQL Server / MS Access：**
+
+```sql
+ALTER TABLE Persons
+ADD CONSTRAINT ab_c DEFAULT 'SANDNES' for City
+```
+
+**Oracle：**
+
+```sql
+ALTER TABLE Persons
+MODIFY City DEFAULT 'SANDNES'
+```
+
+------
+
+## 撤销 DEFAULT 约束
+
+如需撤销 DEFAULT 约束，请使用下面的 SQL：
+
+**MySQL：**
+
+```sql
+ALTER TABLE Persons
+ALTER City DROP DEFAULT
+```
+
+**SQL Server / Oracle / MS Access：**
+
+```sql
+ALTER TABLE Persons
+ALTER COLUMN City DROP DEFAULT
+```
 
 # 参考资料
 
