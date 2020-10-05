@@ -1901,6 +1901,494 @@ ALTER TABLE Persons
 ALTER COLUMN City DROP DEFAULT
 ```
 
+# SQL CREATE INDEX 语句
+
+------
+
+CREATE INDEX 语句用于在表中创建索引。
+
+在不读取整个表的情况下，索引使数据库应用程序可以更快地查找数据。
+
+------
+
+## 索引
+
+您可以在表中创建索引，以便更加快速高效地查询数据。
+
+用户无法看到索引，它们只能被用来加速搜索/查询。
+
+**注释：**更新一个包含索引的表需要比更新一个没有索引的表花费更多的时间，这是由于索引本身也需要更新。因此，理想的做法是仅仅在常常被搜索的列（以及表）上面创建索引。
+
+### SQL CREATE INDEX 语法
+
+在表上创建一个简单的索引。允许使用重复的值：
+
+```sql
+CREATE INDEX index_name
+ON table_name (column_name)
+```
+
+### SQL CREATE UNIQUE INDEX 语法
+
+在表上创建一个唯一的索引。不允许使用重复的值：唯一的索引意味着两个行不能拥有相同的索引值。Creates a unique index on a table. Duplicate values are not allowed:
+
+```sql
+CREATE UNIQUE INDEX index_name
+ON table_name (column_name)
+```
+
+**注释：**用于创建索引的语法在不同的数据库中不一样。因此，检查您的数据库中创建索引的语法。 
+
+------
+
+## CREATE INDEX 实例
+
+下面的 SQL 语句在 "Persons" 表的 "LastName" 列上创建一个名为 "PIndex" 的索引：
+
+```sql
+CREATE INDEX PIndex
+ON Persons (LastName)
+```
+
+如果您希望索引不止一个列，您可以在括号中列出这些列的名称，用逗号隔开：
+
+```sql
+CREATE INDEX PIndex
+ON Persons (LastName, FirstName)
+```
+
+# SQL 撤销索引、撤销表以及撤销数据库
+
+------
+
+通过使用 DROP 语句，可以轻松地删除索引、表和数据库。
+
+------
+
+## DROP INDEX 语句
+
+DROP INDEX 语句用于删除表中的索引。
+
+**用于 MS Access 的 DROP INDEX 语法：**
+
+```sql
+DROP INDEX index_name ON table_name
+```
+
+**用于 MS SQL Server 的 DROP INDEX 语法：**
+
+```sql
+DROP INDEX table_name.index_name
+```
+
+**用于 DB2/Oracle 的 DROP INDEX 语法：**
+
+```sql
+DROP INDEX index_name
+```
+
+**用于 MySQL 的 DROP INDEX 语法：**
+
+```sql
+ALTER TABLE table_name DROP INDEX index_name
+```
+
+------
+
+## DROP TABLE 语句
+
+DROP TABLE 语句用于删除表。
+
+```sql
+DROP TABLE table_name
+```
+
+------
+
+## DROP DATABASE 语句
+
+DROP DATABASE 语句用于删除数据库。
+
+```sql
+DROP DATABASE database_name
+```
+
+------
+
+## TRUNCATE TABLE 语句
+
+如果我们仅仅需要删除表内的数据，但并不删除表本身，那么我们该如何做呢？
+
+请使用 TRUNCATE TABLE 语句：
+
+```sql
+TRUNCATE TABLE table_name
+```
+
+# SQL ALTER TABLE 语句
+
+------
+
+## ALTER TABLE 语句
+
+ALTER TABLE 语句用于在已有的表中添加、删除或修改列。
+
+### SQL ALTER TABLE 语法
+
+如需在表中添加列，请使用下面的语法:
+
+```sql
+ALTER TABLE table_name
+ADD column_name datatype
+```
+
+如需删除表中的列，请使用下面的语法（请注意，某些数据库系统不允许这种在数据库表中删除列的方式）：
+
+```sql
+ALTER TABLE table_name
+DROP COLUMN column_name
+```
+
+要改变表中列的数据类型，请使用下面的语法：
+
+**SQL Server / MS Access：**
+
+```sql
+ALTER TABLE table_name
+ALTER COLUMN column_name datatype
+```
+
+**My SQL / Oracle：**
+
+```sql
+ALTER TABLE table_name
+MODIFY COLUMN column_name datatype
+```
+
+Oracle 10G 之后版本:
+
+```sql
+ALTER TABLE table_name
+MODIFY column_name datatype;
+```
+
+------
+
+## SQL ALTER TABLE 实例
+
+请看 "Persons" 表：
+
+| P_Id | LastName  | FirstName | Address      | City      |
+| ---- | --------- | --------- | ------------ | --------- |
+| 1    | Hansen    | Ola       | Timoteivn 10 | Sandnes   |
+| 2    | Svendson  | Tove      | Borgvn 23    | Sandnes   |
+| 3    | Pettersen | Kari      | Storgt 20    | Stavanger |
+
+现在，我们想在 "Persons" 表中添加一个名为 "DateOfBirth" 的列。
+
+我们使用下面的 SQL 语句：
+
+```sql
+ALTER TABLE Persons
+ ADD DateOfBirth date
+```
+
+请注意，新列 "DateOfBirth" 的类型是 date，可以存放日期。数据类型规定列中可以存放的数据的类型。
+
+现在，"Persons" 表将如下所示：
+
+| P_Id | LastName  | FirstName | Address      | City      | DateOfBirth |
+| ---- | --------- | --------- | ------------ | --------- | ----------- |
+| 1    | Hansen    | Ola       | Timoteivn 10 | Sandnes   |             |
+| 2    | Svendson  | Tove      | Borgvn 23    | Sandnes   |             |
+| 3    | Pettersen | Kari      | Storgt 20    | Stavanger |             |
+
+------
+
+## 改变数据类型实例
+
+现在，我们想要改变 "Persons" 表中 "DateOfBirth" 列的数据类型。
+
+我们使用下面的 SQL 语句：
+
+```sql
+ALTER TABLE Persons
+ALTER COLUMN DateOfBirth year
+```
+
+请注意，现在 "DateOfBirth" 列的类型是 year，可以存放 2 位或 4 位格式的年份。
+
+------
+
+## DROP COLUMN 实例
+
+接下来，我们想要删除 "Person" 表中的 "DateOfBirth" 列。
+
+我们使用下面的 SQL 语句：
+
+```sql
+ALTER TABLE Persons
+DROP COLUMN DateOfBirth
+```
+
+现在，"Persons" 表将如下所示：
+
+| P_Id | LastName  | FirstName | Address      | City      |
+| ---- | --------- | --------- | ------------ | --------- |
+| 1    | Hansen    | Ola       | Timoteivn 10 | Sandnes   |
+| 2    | Svendson  | Tove      | Borgvn 23    | Sandnes   |
+| 3    | Pettersen | Kari      | Storgt 20    | Stavanger |
+
+# SQL AUTO INCREMENT 字段
+
+------
+
+Auto-increment 会在新记录插入表中时生成一个唯一的数字。
+
+------
+
+## AUTO INCREMENT 字段
+
+我们通常希望在每次插入新记录时，自动地创建主键字段的值。
+
+我们可以在表中创建一个 auto-increment 字段。
+
+------
+
+## 用于 MySQL 的语法
+
+下面的 SQL 语句把 "Persons" 表中的 "ID" 列定义为 auto-increment 主键字段：
+
+```sql
+CREATE TABLE Persons
+ (
+ ID int NOT NULL AUTO_INCREMENT,
+ LastName varchar(255) NOT NULL,
+ FirstName varchar(255),
+ Address varchar(255),
+ City varchar(255),
+ PRIMARY KEY (ID)
+ )
+```
+
+MySQL 使用 AUTO_INCREMENT 关键字来执行 auto-increment 任务。
+
+默认地，AUTO_INCREMENT 的开始值是 1，每条新记录递增 1。
+
+要让 AUTO_INCREMENT 序列以其他的值起始，请使用下面的 SQL 语法：
+
+```sql
+ALTER TABLE Persons AUTO_INCREMENT=100
+```
+
+要在 "Persons" 表中插入新记录，我们不必为 "ID" 列规定值（会自动添加一个唯一的值）：
+
+```sql
+INSERT INTO Persons (FirstName,LastName)
+VALUES ('Lars','Monsen')
+```
+
+上面的 SQL 语句会在 "Persons" 表中插入一条新记录。"ID" 列会被赋予一个唯一的值。"FirstName" 列会被设置为 "Lars"，"LastName" 列会被设置为 "Monsen"。
+
+------
+
+## 用于 SQL Server 的语法
+
+下面的 SQL 语句把 "Persons" 表中的 "ID" 列定义为 auto-increment 主键字段：
+
+```sql
+CREATE TABLE Persons
+ (
+ ID int IDENTITY(1,1) PRIMARY KEY,
+ LastName varchar(255) NOT NULL,
+ FirstName varchar(255),
+ Address varchar(255),
+ City varchar(255)
+ )
+```
+
+**MS SQL Server 使用 IDENTITY 关键字来执行 auto-increment 任务。**
+
+在上面的实例中，IDENTITY 的开始值是 1，每条新记录递增 1。
+
+**提示：**要规定 "ID" 列以 10 起始且递增 5，请把 identity 改为 IDENTITY(10,5)。
+
+要在 "Persons" 表中插入新记录，我们不必为 "ID" 列规定值（会自动添加一个唯一的值）：
+
+```sql
+INSERT INTO Persons (FirstName,LastName)
+VALUES ('Lars','Monsen')
+```
+
+上面的 SQL 语句会在 "Persons" 表中插入一条新记录。"ID" 列会被赋予一个唯一的值。"FirstName" 列会被设置为 "Lars"，"LastName" 列会被设置为 "Monsen"。
+
+**给已经存在的colume添加自增语法：**
+
+```sql
+ALTER TABLE table_name CHANGE column_name 
+column_name data_type(size) constraint_name AUTO_INCREMENT;
+```
+
+比如：
+
+```sql
+ALTER TABLE student CHANGE id 
+id INT( 11 ) NOT NULL AUTO_INCREMENT;
+```
+
+# SQL 视图（Views）
+
+------
+
+视图是可视化的表。
+
+**视图的作用：**
+
+1、视图隐藏了底层的表结构，简化了数据访问操作，客户端不再需要知道底层表的结构及其之间的关系。
+
+2、视图提供了一个统一访问数据的接口。（即可以允许用户通过视图访问数据的安全机制，而不授予用户直接访问底层表的权限）
+
+3、从而加强了安全性，使用户只能看到视图所显示的数据。
+
+4、视图还可以被嵌套，一个视图中可以嵌套另一个视图。
+
+------
+
+## SQL CREATE VIEW 语句
+
+在 SQL 中，视图是基于 SQL 语句的结果集的可视化的表。
+
+视图包含行和列，就像一个真实的表。**视图中的字段就是来自一个或多个数据库中的真实的表中的字段。**
+
+您可以向视图添加 SQL 函数、WHERE 以及 JOIN 语句，也可以呈现数据，就像这些数据来自于某个单一的表一样。
+
+### SQL CREATE VIEW 语法
+
+```sql
+CREATE VIEW view_name AS
+ SELECT column_name(s)
+ FROM table_name
+ WHERE condition
+```
+
+**注释：**视图总是显示最新的数据！每当用户查询视图时，数据库引擎通过使用视图的 SQL 语句重建数据。
+
+------
+
+## SQL CREATE VIEW 实例
+
+样本数据库 Northwind 拥有一些被默认安装的视图。
+
+视图 "Current Product List" 会从 "Products" 表列出所有正在使用的产品（未停产的产品）。这个视图使用下面的 SQL 创建：
+
+```sql
+CREATE VIEW [Current Product List] AS
+SELECT ProductID,ProductName
+FROM Products
+WHERE Discontinued=No
+```
+
+我们可以像这样查询上面这个视图：
+
+```sql
+SELECT * FROM [Current Product List]
+```
+
+Northwind 样本数据库的另一个视图会选取 "Products" 表中所有单位价格高于平均单位价格的产品：
+
+```sql
+CREATE VIEW [Products Above Average Price] AS
+SELECT ProductName,UnitPrice
+FROM Products
+WHERE UnitPrice>(SELECT AVG(UnitPrice) FROM Products)
+```
+
+我们可以像这样查询上面这个视图：
+
+```sql
+SELECT * FROM [Products Above Average Price]
+```
+
+Northwind 样本数据库的另一个视图会计算在 1997 年每个种类的销售总数。请注意，**这个视图会从另一个名为 "Product Sales for 1997" 的视图那里选取数据**：
+
+```sql
+CREATE VIEW [Category Sales For 1997] AS
+SELECT DISTINCT CategoryName,Sum(ProductSales) AS CategorySales
+FROM [Product Sales for 1997]
+GROUP BY CategoryName
+```
+
+我们可以像这样查询上面这个视图：
+
+```sql
+SELECT * FROM [Category Sales For 1997]
+```
+
+我们也可以向查询添加条件。现在，我们仅仅需要查看 "Beverages" 类的销售总数：
+
+```sql
+SELECT * FROM [Category Sales For 1997]
+WHERE CategoryName='Beverages'
+```
+
+------
+
+## SQL 更新视图
+
+您可以使用下面的语法来更新视图：
+
+### SQL CREATE OR REPLACE VIEW 语法
+
+```sql
+CREATE OR REPLACE VIEW view_name AS
+SELECT column_name(s)
+FROM table_name
+WHERE condition
+```
+
+现在，我们希望向 "Current Product List" 视图添加 "Category" 列。我们将通过下列 SQL 更新视图：
+
+```sql
+CREATE VIEW [Current Product List] AS
+SELECT ProductID,ProductName,Category
+FROM Products
+WHERE Discontinued=No
+```
+
+### SQL Server
+
+```sql
+ALTER VIEW [ schema_name . ] view_name [ ( column [ ,...n ] ) ] 
+[ WITH <view_attribute> [ ,...n ] ] 
+AS select_statement 
+[ WITH CHECK OPTION ] [ ; ]
+
+<view_attribute> ::= 
+{ 
+    [ ENCRYPTION ]
+    [ SCHEMABINDING ]
+    [ VIEW_METADATA ]     
+} 
+```
+
+- **schema_name:** 视图所属架构的名称。
+- **view_name:** 要更改的视图。
+- **column:** 将成为指定视图的一部分的一个或多个列的名称（以逗号分隔）。
+
+------
+
+## SQL 撤销视图
+
+您可以通过 DROP VIEW 命令来删除视图。
+
+### SQL DROP VIEW 语法
+
+```sql
+DROP VIEW view_name
+```
+
+
+
 # 参考资料
 
 [菜鸟教程]: https://www.runoob.com/sql/sql-intro.html
