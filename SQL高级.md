@@ -2387,7 +2387,274 @@ AS select_statement
 DROP VIEW view_name
 ```
 
+# SQL Date 函数
 
+------
+
+## SQL 日期（Dates）
+
+![Note](https://www.runoob.com/images/lamp.gif)当我们处理日期时，最难的任务恐怕是确保所插入的日期的格式，与数据库中日期列的格式相匹配。
+
+只要您的数据包含的只是日期部分，运行查询就不会出问题。但是，如果涉及时间部分，情况就有点复杂了。
+
+在讨论日期查询的复杂性之前，我们先来看看最重要的内建日期处理函数。
+
+------
+
+## MySQL Date 函数
+
+下面的表格列出了 MySQL 中最重要的内建日期函数：
+
+| 函数                                                         | 描述                                |
+| ------------------------------------------------------------ | ----------------------------------- |
+| [NOW()](https://www.runoob.com/sql/func-now.html)            | 返回当前的日期和时间                |
+| [CURDATE()](https://www.runoob.com/sql/func-curdate.html)    | 返回当前的日期                      |
+| [CURTIME()](https://www.runoob.com/sql/func-curtime.html)    | 返回当前的时间                      |
+| [DATE()](https://www.runoob.com/sql/func-date.html)          | 提取日期或日期/时间表达式的日期部分 |
+| [EXTRACT()](https://www.runoob.com/sql/func-extract.html)    | 返回日期/时间的单独部分             |
+| [DATE_ADD()](https://www.runoob.com/sql/func-date-add.html)  | 向日期添加指定的时间间隔            |
+| [DATE_SUB()](https://www.runoob.com/sql/func-date-sub.html)  | 从日期减去指定的时间间隔            |
+| [DATEDIFF()](https://www.runoob.com/sql/func-datediff-mysql.html) | 返回两个日期之间的天数              |
+| [DATE_FORMAT()](https://www.runoob.com/sql/func-date-format.html) | 用不同的格式显示日期/时间           |
+
+
+
+------
+
+## SQL Server Date 函数
+
+下面的表格列出了 SQL Server 中最重要的内建日期函数：
+
+| 函数                                                        | 描述                             |
+| ----------------------------------------------------------- | -------------------------------- |
+| [GETDATE()](https://www.runoob.com/sql/func-getdate.html)   | 返回当前的日期和时间             |
+| [DATEPART()](https://www.runoob.com/sql/func-datepart.html) | 返回日期/时间的单独部分          |
+| [DATEADD()](https://www.runoob.com/sql/func-dateadd.html)   | 在日期中添加或减去指定的时间间隔 |
+| [DATEDIFF()](https://www.runoob.com/sql/func-datediff.html) | 返回两个日期之间的时间           |
+| [CONVERT()](https://www.runoob.com/sql/func-convert.html)   | 用不同的格式显示日期/时间        |
+
+------
+
+## SQL Date 数据类型
+
+**MySQL** 使用下列数据类型在数据库中存储日期或日期/时间值：
+
+- DATE - 格式：YYYY-MM-DD
+- DATETIME - 格式：YYYY-MM-DD HH:MM:SS
+- TIMESTAMP - 格式：YYYY-MM-DD HH:MM:SS
+- YEAR - 格式：YYYY 或 YY
+
+**SQL Server** 使用下列数据类型在数据库中存储日期或日期/时间值：
+
+- DATE - 格式：YYYY-MM-DD
+- DATETIME - 格式：YYYY-MM-DD HH:MM:SS
+- SMALLDATETIME - 格式：YYYY-MM-DD HH:MM:SS
+- TIMESTAMP - 格式：唯一的数字
+
+**注释：**当您在数据库中创建一个新表时，需要为列选择数据类型！
+
+------
+
+## SQL 日期处理
+
+![Note](https://www.runoob.com/images/lamp.gif)如果不涉及时间部分，那么我们可以轻松地比较两个日期！
+
+假设我们有如下的 "Orders" 表：
+
+| OrderId | ProductName            | OrderDate  |
+| ------- | ---------------------- | ---------- |
+| 1       | Geitost                | 2008-11-11 |
+| 2       | Camembert Pierrot      | 2008-11-09 |
+| 3       | Mozzarella di Giovanni | 2008-11-11 |
+| 4       | Mascarpone Fabioli     | 2008-10-29 |
+
+现在，我们希望从上表中选取 OrderDate 为 "2008-11-11" 的记录。
+
+我们使用下面的 SELECT 语句：
+
+```sql
+SELECT * FROM Orders WHERE OrderDate='2008-11-11'
+```
+
+结果集如下所示：
+
+| OrderId | ProductName            | OrderDate  |
+| ------- | ---------------------- | ---------- |
+| 1       | Geitost                | 2008-11-11 |
+| 3       | Mozzarella di Giovanni | 2008-11-11 |
+
+现在，假设 "Orders" 表如下所示（请注意 "OrderDate" 列中的时间部分）：
+
+| OrderId | ProductName            | OrderDate           |
+| ------- | ---------------------- | ------------------- |
+| 1       | Geitost                | 2008-11-11 13:23:44 |
+| 2       | Camembert Pierrot      | 2008-11-09 15:45:21 |
+| 3       | Mozzarella di Giovanni | 2008-11-11 11:12:01 |
+| 4       | Mascarpone Fabioli     | 2008-10-29 14:56:59 |
+
+如果我们使用和上面一样的 SELECT 语句：
+
+```SQL
+SELECT * FROM Orders WHERE OrderDate='2008-11-11'
+
+或
+
+SELECT * FROM Orders WHERE OrderDate='2008-11-11 00：00：00'
+```
+
+那么我们将得不到结果！因为表中没有"2008-11-11 00:00:00"日期。如果没有时间部分，默认时间为 00:00:00。
+
+**提示：**如果您希望使查询简单且更易维护，那么请不要在日期中使用时间部分！
+
+# SQL NULL 值
+
+------
+
+NULL 值代表遗漏的未知数据。
+
+默认地，表的列可以存放 NULL 值。
+
+本章讲解 IS NULL 和 IS NOT NULL 操作符。
+
+------
+
+## SQL NULL 值
+
+如果表中的某个列是可选的，那么我们可以在不向该列添加值的情况下插入新记录或更新已有的记录。这意味着该字段将以 NULL 值保存。
+
+NULL 值的处理方式与其他值不同。
+
+NULL 用作未知的或不适用的值的占位符。
+
+![Note](https://www.runoob.com/images/lamp.gif)**注释：**无法比较 NULL 和 0；它们是不等价的。
+
+------
+
+## SQL 的 NULL 值处理
+
+请看下面的 "Persons" 表：
+
+| P_Id | LastName  | FirstName | Address   | City      |
+| ---- | --------- | --------- | --------- | --------- |
+| 1    | Hansen    | Ola       |           | Sandnes   |
+| 2    | Svendson  | Tove      | Borgvn 23 | Sandnes   |
+| 3    | Pettersen | Kari      |           | Stavanger |
+
+假如 "Persons" 表中的 "Address" 列是可选的。这意味着如果在 "Address" 列插入一条不带值的记录，"Address" 列会使用 NULL 值保存。
+
+那么我们如何测试 NULL 值呢？
+
+**无法使用比较运算符来测试 NULL 值，比如 =、< 或 <>。**
+
+我们必须使用 IS NULL 和 IS NOT NULL 操作符。
+
+------
+
+## SQL IS NULL
+
+我们如何仅仅选取在 "Address" 列中带有 NULL 值的记录呢？
+
+我们必须使用 IS NULL 操作符：
+
+```SQL
+SELECT LastName,FirstName,Address FROM Persons
+ WHERE Address IS NULL
+```
+
+结果集如下所示：
+
+| LastName  | FirstName | Address |
+| --------- | --------- | ------- |
+| Hansen    | Ola       |         |
+| Pettersen | Kari      |         |
+
+![Note](https://www.runoob.com/images/lamp.gif)**提示：****请始终使用 IS NULL 来查找 NULL 值。**
+
+------
+
+## SQL IS NOT NULL
+
+我们如何仅仅选取在 "Address" 列中不带有 NULL 值的记录呢？
+
+我们必须使用 IS NOT NULL 操作符：
+
+```sql
+SELECT LastName,FirstName,Address FROM Persons
+ WHERE Address IS NOT NULL
+```
+
+结果集如下所示：
+
+| LastName | FirstName | Address   |
+| -------- | --------- | --------- |
+| Svendson | Tove      | Borgvn 23 |
+
+# SQL NULL 函数
+
+------
+
+## SQL ISNULL()、NVL()、IFNULL() 和 COALESCE() 函数
+
+请看下面的 "Products" 表：
+
+| P_Id | ProductName | UnitPrice | UnitsInStock | UnitsOnOrder |
+| ---- | ----------- | --------- | ------------ | ------------ |
+| 1    | Jarlsberg   | 10.45     | 16           | 15           |
+| 2    | Mascarpone  | 32.56     | 23           |              |
+| 3    | Gorgonzola  | 15.67     | 9            | 20           |
+
+假如 "UnitsOnOrder" 是可选的，而且可以包含 NULL 值。
+
+我们使用下面的 SELECT 语句：
+
+```sql
+SELECT ProductName,UnitPrice*(UnitsInStock+UnitsOnOrder)
+ FROM Products
+```
+
+在上面的实例中，如果有 "UnitsOnOrder" 值是 NULL，那么结果是 NULL。
+
+微软的 ISNULL() 函数用于规定如何处理 NULL 值。
+
+NVL()、IFNULL() 和 COALESCE() 函数也可以达到相同的结果。
+
+在这里，我们希望 NULL 值为 0。
+
+下面，如果 "UnitsOnOrder" 是 NULL，则不会影响计算，因为如果值是 NULL 则 ISNULL() 返回 0：
+
+**SQL Server / MS Access**
+
+```sql
+SELECT ProductName,UnitPrice*(UnitsInStock+ISNULL(UnitsOnOrder,0))
+ FROM Products
+```
+
+**Oracle**
+
+Oracle 没有 ISNULL() 函数。不过，我们可以使用 NVL() 函数达到相同的结果：
+
+```sql
+SELECT ProductName,UnitPrice*(UnitsInStock+NVL(UnitsOnOrder,0))
+ FROM Products
+```
+
+**MySQL**
+
+MySQL 也拥有类似 ISNULL() 的函数。不过它的工作方式与微软的 ISNULL() 函数有点不同。
+
+在 MySQL 中，我们可以使用 IFNULL() 函数，如下所示：
+
+```sql
+SELECT ProductName,UnitPrice*(UnitsInStock+IFNULL(UnitsOnOrder,0))
+ FROM Products
+```
+
+或者我们可以使用 COALESCE() 函数，如下所示：
+
+```sql
+SELECT ProductName,UnitPrice*(UnitsInStock+COALESCE(UnitsOnOrder,0))
+ FROM Products
+```
 
 # 参考资料
 
