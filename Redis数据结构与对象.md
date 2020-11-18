@@ -30,6 +30,8 @@ struct sdshdr {
 };
 ```
 
+注意：在Redis6.0中，**sdshdr结构**又分为**sdshdr5**、**sdshdr8**、**sdshdr16**、**sdshdr32**、**sdshdr64**，其中**5**是从不使用，只做直接访问标记字节。
+
 ### SDS与C语言字符串的区别
 
 1. **获取字符串长度的复杂度**：SDS结构保存了字符串长度，C字符串没有；SDS获取字符串长度直接访问变量`len`（复杂度为常量级），C字符串需要遍历整个字符数组进行计算（复杂度取决于长度，即为n）；
@@ -301,6 +303,155 @@ static void _dictRehashStep(dict *d) {
 ​	**个人总结**：**渐进式rehash**采用分而治之的思想，将一项有着庞大的计算量操作分成多步进行。从另一个角度上看，虽然避免了服务器可能会在**rehash**长时间停止服务的可能，但也增加了**rehash**所需要的时间，是不是甚至可能一直都不会**rehash**（没有对字典增删改查的操作）？
 
 ## 跳跃表
+
+
+
+## 整数集合
+
+
+
+## 压缩列表
+
+
+
+## 对象
+
+​	在Redis中，数据库的键值对都是使用对象实现的，而对象系统是基于上述的数据结构创建的。对象系统包含字符串对象、列表对象、哈希对象、集合对象和有序集合对象五中类型的对象，每种对象都用到了至少一种上述的数据结构。
+
+​	**在数据库的Key-Value键值对中，Key值总是字符串对象（后面以数据库键表示），而Value值可以是五种对象类型的一种（后面以数据库值表示）**。使用对象的好处是，可以针对不同的使用场景，为对象设置多种不同的数据结构实现，从而优化对象在不同场景下的使用效率（也就是说对象并不是由唯一数据结构实现的）。
+
+### 对象的类型与编码
+
+​	对象在源码（server.h/redisObject）中的定义如下：
+
+```c
+typedef struct redisObject {
+    unsigned type:4;
+    unsigned encoding:4;
+    unsigned lru:LRU_BITS; /* LRU time (relative to global lru_clock) or
+                            * LFU data (least significant 8 bits frequency
+                            * and most significant 16 bits access time). */
+    /* 这个属性与页面置换算法有关 */
+    
+    int refcount;
+    void *ptr;
+} robj;
+```
+
+#### 类型
+
+​	对象的`type`属性记录了对象的类型，这些类型在源码中使用如下的宏定义：
+
+```C
+#define OBJ_STRING 0    /* String object. */
+#define OBJ_LIST 1      /* List object. */
+#define OBJ_SET 2       /* Set object. */
+#define OBJ_ZSET 3      /* Sorted set object. */
+#define OBJ_HASH 4      /* Hash object. */
+```
+
+​	可以看到，这些类型常量就如前面所说有五种类型。当我们对一个数据库键执行`TYPE`命令时，命令返回结果为数据库键对应的值对象的类型。
+
+​	**个人总结**：Redis数据库是一种Key-Value数据，也就是说Redis使用键值对存储任何对象类型，而存储这些键值对的数据结构被称为**字典**，也就是Redis名字的由来——Remote Dictionary Server。我们可以把Redis数据库想象成一本字典，每个键对应一个值，键是唯一且只能是字符串对象，而值可以是其他类型的对象。
+
+#### 编码和底层实现
+
+​	**redisObject**结构中的**ptr**指针指向的是对象的底层实现数据结构，而这些数据结构由对象的**encoding**属性决定。
+
+​	**encoding**属性记录了对象所使用的编码[^注7.1.1]，也就是说这个对象使用了什么数据结构作为对象的底层实现，这些编码常量在源码中使用如下的宏定义：
+
+```C
+#define OBJ_ENCODING_RAW 0     /* Raw representation */
+#define OBJ_ENCODING_INT 1     /* Encoded as integer */
+#define OBJ_ENCODING_HT 2      /* Encoded as hash table */
+#define OBJ_ENCODING_ZIPMAP 3  /* Encoded as zipmap */
+#define OBJ_ENCODING_LINKEDLIST 4 /* No longer used: old list encoding. */
+#define OBJ_ENCODING_ZIPLIST 5 /* Encoded as ziplist */
+#define OBJ_ENCODING_INTSET 6  /* Encoded as intset */
+#define OBJ_ENCODING_SKIPLIST 7  /* Encoded as skiplist */
+#define OBJ_ENCODING_EMBSTR 8  /* Embedded sds string encoding */
+#define OBJ_ENCODING_QUICKLIST 9 /* Encoded as linked list of ziplists */
+#define  OBJ_ENCODING_STREAM 10 /* Encoded as a radix tree of listpacks */
+```
+
+​	每种类型的对象都至少使用了两种不同的编码，后面介绍每种对象都可以使用哪种数据结构。
+
+​	使用 `OBJECT ENCODING`命令可以查看数据库值对象的编码。
+
+[^注7.1.1]:这里的编码不是将字符“编码”成字节的编码，而是将数据结构“编码”成对象的编码，类似于实现类与抽象类的关系
+
+### 字符串对象
+
+​	字符串对象的编码可以是 `INT`、`RAW`或者`EMBSTR` （省略了`OBJ_ENCODING`）。
+
+​	下面列出创建不同编码的字符串对象时的情况：
+
+- 如果一个字符串对象保存的是**整数值**，并且这个整数值可以用**long**类型来表示，那么字符串对象会将整数值保存在字符串对象结构的**ptr**属性里面（将**void***转换成**long**），并将字符串对象的**encoding**属性设置为`INT`。
+- 如果一个字符串对象保存的是一个**字符串值**，并且这个字符串值的长度大于44字节，那么字符串对象使用一个SDS来保存这个字符串值，并将对象的**encoding**属性设置为`RAW`。
+- 如果一个字符串对象保存的是一个**字符串值**，并且这个字符串值的长度小于等于44字节，那么字符串对象将使用`EMBSTR`编码的方式来保存这个字符串值。
+
+​	下面是源码中一个存储字符串值的对象创建函数：
+
+```c
+#define OBJ_ENCODING_EMBSTR_SIZE_LIMIT 44
+robj *createStringObject(const char *ptr, size_t len) {
+    if (len <= OBJ_ENCODING_EMBSTR_SIZE_LIMIT)
+        return createEmbeddedStringObject(ptr,len);
+    else
+        return createRawStringObject(ptr,len);
+}
+```
+
+​	**`EMBSTR`编码是专门用于保存短字符串的一种优化编码方式**，这种编码和`RAW`编码一样，都是用**redisObject**结构和**sdshdr**结构来表示字符串对象，但`RAW`编码会**调用两次内存分配函数**来分别创建**redisObject**结构和**sdshdr**结构，而`EMBSTR`编码则通过**调用一次内存分配函数**来分配一块连续的空间，空间依次包含**redisObject**结构和**sdshdr**结构。
+
+​	创建`EMBSTR`编码的字符串对象函数如下：
+
+```c
+robj *createEmbeddedStringObject(const char *ptr, size_t len) {
+    robj *o = zmalloc(sizeof(robj)+sizeof(struct sdshdr8)+len+1);
+    struct sdshdr8 *sh = (void*)(o+1);
+    // 其余不贴出...
+}
+```
+
+​	创建`RAW`编码的字符串对象函数如下：
+
+```c
+robj *createRawStringObject(const char *ptr, size_t len) {
+    return createObject(OBJ_STRING, sdsnewlen(ptr,len));
+}
+// sdsnewlen()函数是会为sds结构分配内存的函数；
+// createObject()函数会为redisObject结构分配内存的函数；
+```
+
+​	
+
+​	使用`EMBSTR`编码的字符串对象来保存短字符串指有以下好处：
+
+- 内存分配次数从两次降为一次；同理，调用释放内存函数次数也降低；
+- `EMBSTR`编码的字符串对象的所有数据都保存在一块连续的内存里面，所以这种编码的字符串对象比`RAW`编码的字符串对象能够更好地利用缓存带来的优势；
+
+> **Tips**：
+>
+> ​	long double类型表示的浮点数在 Redis中也是作为字符串值来保存的。如果我们要保存一个浮点数到字符串对象里面，那么程序会先将这个浮点数转换成字符串值，然后再保存转所得的字符串值。
+>
+> ​	在需要浮点数值的时候，则会将字符串值转换成浮点数值。
+
+------
+
+**个人问题**：在验证字符串对象编码中，发现字符串长度大于等于40时，字符串对象的编码是`RAW`；小于40时字符串对象的编码是`EMBSTR`，测试截图如下：
+
+​	编码为`RAW`：
+
+![字符串编码测试raw](C:\Users\Administrator\Desktop\学习\数据库\Database-learn\img\字符串编码测试raw.png)
+
+​	编码为`EMBSTR`：
+
+![字符串编码测试embstr](C:\Users\Administrator\Desktop\学习\数据库\Database-learn\img\字符串编码测试embstr.png)
+
+​	**个人猜测**：可能在传递到实现函数的过程中，保留了或附加了5个长度。
+
+------
 
 
 
