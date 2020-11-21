@@ -336,8 +336,8 @@ typedef struct zskiplistNode {
     - ***forward** ：该属性称为**前进指针**，用指向**同层**的下一个跳跃表节点，实现节点遍历功能；
     - **span**：该属性用于记录前进指针指向的节点与该节点的**跨度**，也就是两个节点之间的距离；
 
-- **score**：该属性表示节点的分值，跳跃表中的所有节点都按分值从小到大来排序。
-- **ele**：sds结构的属性，类似于成员名称，用于表明节点在跳跃表的名称，该值是唯一的；
+- **score**：该属性表示节点的分值，跳跃表中的所有节点都按分值从小到大来排序，可以同分。
+- **ele**：sds结构的属性，类似于成员名称，用于表明节点在跳跃表的名称，该值是**唯一的**；
 - ***backward**：该属性称为**后退指针**，就是双端链表中前驱指针的意思，用于从表尾向表头方向访问节点，该指针的路径不能跳跃；
 
 ​	**个人总结**：跳跃表节点中的“层”是跳跃表的核心思想，在链表上增加“层”的概念，使得查找某个节点时，可以跳过一些节点，增加查找的速度。有种二分查找的思想，过滤掉目标不在的区域。
@@ -364,6 +364,93 @@ typedef struct zskiplist {
 
 
 ## 整数集合
+
+​	整数集合是集合键的底层实现之一，当一个解只包含整数值元素，并且这个集合的元素数量不多时，Redis就会使用整数集合作为集合键的底层实现。
+
+​	整数集合可以保存类型为**int16_t、int32_t或者int64_t**的整数值，并且保证集合中不会出现重复元素。
+
+### 实现
+
+```c
+typedef struct intset {
+    uint32_t encoding;
+    uint32_t length;
+    int8_t contents[];
+} intset;
+```
+
+- **contents[]**：该属性用于存放整数集合的值，各个元素在数组中按值的大小从小到大排列，并且数组不包含任何重复的元素；
+
+- **length**：该属性记录了整数集合包含的元素数量，也是**contents**数组的长度；
+
+- **encoding**：该属性决定**contents**数组的真正类型，也就是说**contents**数组的类型并不是**int8_t**；
+
+    - **encoding**属性值为**INTSET_ENC_INT16**，那么**contents**就是一个**int16_t**类型的数组，数组每个元素都为**int16_t**类型的整数值（最小值为 -32 768，最大值为 32 767）；
+    - **encoding**属性值为**INTSET_ENC_INT32**，那么**contents**就是一个**int32_t**类型的数组，数组每个元素都为**int32_t**类型的整数值（最小值为 -2 147 483 648，最大值为 2 147 483 647）；
+    - **encoding**属性值为**INTSET_ENC_INT64**，那么**contents**就是一个**int64_t**类型的数组，数组每个元素都是**int64_t**类型的整数值（最小值为 -9 223 372 036 854 775 808，最大值为 9 223 372 036 854 775 808）；
+
+    每次向**intset**添加元素时，都会重新分配空间（调用**zrealloc**函数），并更新**length**。
+
+### 升级
+
+​	升级（upgrade）是**指当我们要将一个新元素添加到整数集合里面，并且新元素的值超出整数集合目前类型的范围时，就需要先对整数集合升级，然后才能将新元素添加到整数集合里面**。也就是说整数集合为了能够装下新元素，会对整数集合中所有元素的类型进行升级，将范围扩大。
+
+​	升级整数集合并添加新元素共分为三步进行：
+
+1. 根据新元素的类型，扩展整数集合底层数组的空间大小，并为新元素分配空间；
+2. 将底层数组现有的所有元素都转换成与新元素相同的类型，并将类型转换后的元素放置到正确的位置上，而且在放置元素的过程中，需要继续维持底层数组的有序性质不变；
+3. 将新元素添加到底层数组里面；
+
+源码如下：
+
+```c
+/* Upgrades the intset to a larger encoding and inserts the given integer. */
+static intset *intsetUpgradeAndAdd(intset *is, int64_t value) {
+    uint8_t curenc = intrev32ifbe(is->encoding);
+    uint8_t newenc = _intsetValueEncoding(value);
+    int length = intrev32ifbe(is->length);
+    int prepend = value < 0 ? 1 : 0;
+
+    /* First set new encoding and resize */
+    is->encoding = intrev32ifbe(newenc); // 修改encoding，后面数组的操作都与该属性有关
+    is = intsetResize(is,intrev32ifbe(is->length)+1); // 分配空间
+
+    /* Upgrade back-to-front so we don't overwrite values.
+     * Note that the "prepend" variable is used to make sure we have an empty
+     * space at either the beginning or the end of the intset. */
+    // 将现有的所有元素放到正确的位置，_intsetSet函数会根据encoding属性修改数组类型
+    while(length--)
+        _intsetSet(is,length+prepend,_intsetGetEncoded(is,length,curenc));
+
+    /* Set the value at the beginning or the end. */
+    // 根据正负将新元素放置正确位置
+    if (prepend)
+        _intsetSet(is,0,value);
+    else
+        _intsetSet(is,intrev32ifbe(is->length),value);
+    is->length = intrev32ifbe(intrev32ifbe(is->length)+1);
+    return is;
+}
+```
+
+------
+
+​	**个人问题**：查看源码，发现在最后一部插入新元素时，要么在数组的头部插入，要么在数组尾部插入。如果新元素的值应该在数组中间，那不就是破坏了集合的有序性吗？
+
+​	**个人猜测**：在普通的添加函数（***intsetAdd()**）中，会对新元素进行判断，如果值大小超过现整数集合的类型的范围才会升级，如果值大小未超过，就算新元素的值的类型是较高级的，也会转换从现整数集合的类型。更何况在redis-cli中向集合新增值时，也无法指定类型。（猜测正确，有资料表明引起升级的元素必然超过现有整数集合类型的范围）
+
+------
+
+​	因为每次向整数集合添加新元素都可能会引起升级，而升级会将底层数组所有元素进行类型转换，所有整数集合添加新元素的时间复杂度为O(n)。
+
+### 升级的好处
+
+​	整数集合的升级策略有两个好处：**提高整数集合的灵活性**和**尽可能地节约内存**。
+
+- **提高灵活性**：因为C语言是静态类型语言，为了避免类型错误，通常不会将两种不同类型的值放在同一个数据结构里面。例如，一般只使用**int16_t**类型的数组来保存**int16_t**类型的值。但是，因为整数集合可以通过自动升级底层数组来适应新元素，所以我们可以随意地将**int16_t、int32_t或int64_t**类型的整数添加到集合中，而不必担心出现类型错误，这种做法非常灵活。
+- **节约内存**：如果没有升级策略，为了容纳**int64_t**类型的值，那么一开始数组就会固定为**int64_t**类型，而如果该数组只存更小类型的值时，那就会出现浪费内存的情况。但是有了升级策略之后，数组是自适应地调整数组类型，减少浪费内存的可能性。
+
+**Tip**：**整数集合不支持降级操作。**
 
 
 
