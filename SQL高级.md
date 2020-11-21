@@ -2572,7 +2572,7 @@ SELECT LastName,FirstName,Address FROM Persons
 | Hansen    | Ola       |         |
 | Pettersen | Kari      |         |
 
-![Note](https://www.runoob.com/images/lamp.gif)**提示：****请始终使用 IS NULL 来查找 NULL 值。**
+![Note](https://www.runoob.com/images/lamp.gif)**提示：请始终使用 IS NULL 来查找 NULL 值。**
 
 ------
 
