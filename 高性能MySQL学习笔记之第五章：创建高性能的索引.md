@@ -502,7 +502,7 @@ PS：无论是冗余还是重复，多出来的索引就需要更多时间去维
 
 ​	在MySQL未发布“索引条件下推”的版本前，索引无法根据`WHERE`子句的条件过滤不需要的行，只能将检索到数据返回给服务器层进行过滤，此时`InnoDB`就会锁住这些行。在可以使用“索引条件下推”的版本中，就可以在检索到数据后即刻根据条件过滤数据。
 
-​	在MySQL5.6之后推出“索引条件下推（Index Condition Putdown，ICP）”，ICP主要针对二级索引的范围查询。开启和关闭ICP的语句如下（默认开启）：
+​	在MySQL5.6之后推出“索引条件下推（Index Condition Putdown，ICP）”，ICP**主要针对二级索引的范围查询**。开启和关闭ICP的语句如下（默认开启）：
 
 ```sql
 SET optimizer_switch = 'index_condition_pushdown=off';

@@ -456,6 +456,126 @@ static intset *intsetUpgradeAndAdd(intset *is, int64_t value) {
 
 ## 压缩列表
 
+​	压缩列表（ziplist）是列表键和哈希键的底层实现之一。
+
+### 实现
+
+​	压缩列表是Redis为了节约内存而开发的，**是由连续内存块组成的顺序型数据结构**。一个压缩列表可以有多个节点，一个节点可以保存一个字节数组或者一个整数值。值得注意的是，Redis并没有定义压缩列表的数据结构，但是定义了压缩列表节点的数据结构。
+
+​	压缩列表实质上就是一个字符数组，下面是创建压缩列表的源码（/ziplist.c）：
+
+```c
+/* Return total bytes a ziplist is composed of. */
+#define ZIPLIST_BYTES(zl)       (*((uint32_t*)(zl)))
+
+/* Return the offset of the last item inside the ziplist. */
+#define ZIPLIST_TAIL_OFFSET(zl) (*((uint32_t*)((zl)+sizeof(uint32_t))))
+
+/* Return the length of a ziplist, or UINT16_MAX if the length cannot be
+ * determined without scanning the whole ziplist. */
+#define ZIPLIST_LENGTH(zl)      (*((uint16_t*)((zl)+sizeof(uint32_t)*2)))
+
+unsigned char *ziplistNew(void) {
+    unsigned int bytes = ZIPLIST_HEADER_SIZE+ZIPLIST_END_SIZE;
+    unsigned char *zl = zmalloc(bytes);
+    ZIPLIST_BYTES(zl) = intrev32ifbe(bytes);
+    ZIPLIST_TAIL_OFFSET(zl) = intrev32ifbe(ZIPLIST_HEADER_SIZE);
+    ZIPLIST_LENGTH(zl) = 0;
+    zl[bytes-1] = ZIP_END;
+    return zl;
+}
+```
+
+整个压缩列表由以下部分组成：
+
+- **zlbytes**：uint32_t 类型（占4个字节）；记录整个压缩列表占用的内存字节数。在对压缩列表重分配时使用或计算**zlend**的位置时使用；
+- **zltail**：uint32_t 类型（占4个字节）；记录压缩列表表尾节点距离压缩列表的起始地址有多少字节。通过整个偏移量，程序无须遍历整个压缩列表就可以确定表尾节点的地址；
+- **zllen**：uint16_t 类型（占2个字节）；记录压缩列表包含的节点数量。当节点数量大于`UINT16_MAX`（65535）时，这个值就为`UINT16_MAX`不变，此时需要遍历整个压缩列表才能计算出节点数量；
+- **zlentry**：压缩列表节点，后面详细介绍；
+- **zlend**：uint8_t 类型（占1字节）；特殊值0xFF（255），用于标记压缩列表的末端；
+
+#### 压缩列表节点
+
+​	*/ziplist.c/zlentry*
+
+```C
+typedef struct zlentry {
+    unsigned int prevrawlensize; /* Bytes used to encode the previous entry len*/
+    unsigned int prevrawlen;     /* Previous entry len. */
+    unsigned int lensize;        /* Bytes used to encode this entry type/len.
+                                    For example strings have a 1, 2 or 5 bytes
+                                    header. Integers always use a single byte.*/
+    unsigned int len;            /* Bytes used to represent the actual entry.
+                                    For strings this is just the string length
+                                    while for integers it is 1, 2, 3, 4, 8 or
+                                    0 (for 4 bit immediate) depending on the
+                                    number range. */
+    unsigned int headersize;     /* prevrawlensize + lensize. */
+    unsigned char encoding;      /* Set to ZIP_STR_* or ZIP_INT_* depending on
+                                    the entry encoding. However for 4 bits
+                                    immediate integers this can assume a range
+                                    of values and must be range-checked. */
+    unsigned char *p;            /* Pointer to the very start of the entry, that
+                                    is, this points to prev-entry-len field. */
+} zlentry;
+```
+
+- **prevrawlensize**：用于记录**prevrawlen**的字节数。如果前一节点长度小于254字节，该属性值为1；如果前一节点长度大于等于255字节，该属性值为5；该属性与**prevrawlen**配合使用；
+- **prevrawlen**：用于记录前一节点的长度。**prevrawlensize**值为1时该属性直接记录长度；如果值为5时，该属性的第一个字节会被设置为0xFE（254），后面4个字节记录长度；**该属性的值加上当前节点的起始地址可以得到前一个节点的起始地址**；
+- **lensize**：用于记录当前节点**encoding**的字节数。如果当前节点保存字符数组（字符串），该属性的值可以为1，2，5；如果当前节点保存整数，该属性的值为1；
+- **len**：节点数据的长度，如果**encoding**为字符串类型，则该属性表示字符串的长度；如果**encoding**为整数类型，则该属性表示整数的范围（位数）；
+- **headersize**：存储**prevrawlensize**属性值与**lensize**属性值的和；
+- **encoding**：用于记录当前节点的数据类型，可以为字符串类型（char数组）和整数类型；
+- ***p**：注释说是指向入口节点，即指向prev-entry-len字段。（但我认为是存储节点数据的属性）；
+
+### 连锁更新
+
+​	连锁更新与节点中的**prevrawlen**属性息息相关，当每个节点的长度都处于255与254的临界点时，一旦有引起变化的条件发生时，**prevrawlen**属性就需要重新分配空间。连锁更新可以看作是多米诺骨牌效应。
+
+## 快速列表
+
+​	快速列表（quicklist）是列表键的实现之一。
+
+### 实现
+
+​	快速列表主要有两个角色，**用于记录快速列表节点相关信息的 `quicklist` 结构** 和 **用于表示快速列表节点的 `quicklistNode` 结构**。
+
+#### 快速列表节点
+
+​	快速列表节点是一个基于压缩列表的32字节的数据结构。
+
+```c
+typedef struct quicklistNode {
+    struct quicklistNode *prev;
+    struct quicklistNode *next;
+    unsigned char *zl;
+    unsigned int sz;             /* ziplist size in bytes */
+    unsigned int count : 16;     /* count of items in ziplist */
+    unsigned int encoding : 2;   /* RAW==1 or LZF==2 */
+    unsigned int container : 2;  /* NONE==1 or ZIPLIST==2 */
+    unsigned int recompress : 1; /* was this node previous compressed? */
+    unsigned int attempted_compress : 1; /* node can't compress; too small */
+    unsigned int extra : 10; /* more bits to steal for future usage */
+} quicklistNode;
+```
+
+
+
+#### 快速列表
+
+```c
+typedef struct quicklist {
+    quicklistNode *head;
+    quicklistNode *tail;
+    unsigned long count;        /* total count of all entries in all ziplists */
+    unsigned long len;          /* number of quicklistNodes */
+    int fill : QL_FILL_BITS;              /* fill factor for individual nodes */
+    unsigned int compress : QL_COMP_BITS; /* depth of end nodes not to compress;0=off */
+    unsigned int bookmark_count: QL_BM_BITS;
+    quicklistBookmark bookmarks[];
+} quicklist;
+```
+
 
 
 ## 对象
@@ -626,6 +746,24 @@ robj *createRawStringObject(const char *ptr, size_t len) {
 ​	`ZIPLIST`编码的列表对象使用压缩列表作为底层实现，每个压缩列表节点保存了一个列表元素。
 
 ​	`LINKEDLIST`编码不再使用。
+
+​	`QUICKLIST`编码的列表对象使用快速列表作为底层实现。
+
+#### 编码转换
+
+待
+
+
+
+### 哈希对象
+
+​	哈希对象的编码可以是 `ZIPLIST` 或 `HASHTABLE`。其中 `HASHTABLE` 编码的哈希对象的创建方法被移除。
+
+​	`ZIPLIST`编码的哈希对象使用压缩列表作为底层实现，每当有新的键值对要加入到哈希对象时，程序会先将保存了**键的压缩列表节点**插入压缩列表表尾，然后再将保存了**值的压缩列表节点**插入压缩列表表尾。因此同一键值对的两个节点总是紧挨在一起，键在前，值在后。
+
+
+
+
 
 # 参考资料
 
