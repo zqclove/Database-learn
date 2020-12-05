@@ -259,7 +259,7 @@ dictEntry *dictAddRaw(dict *d, void *key, dictEntry **existing)
 2. 将保存在**ht[0]**中的所有键值对根据**ht[1].sizemask**重新计算索引值，然后放置到**ht[1]**的指定索引位置上；
 3. 所有键值对迁移完成后，释放**ht[0]**，将**ht[1]**设置为**ht[0]**，并在重新在**ht[1]**上创建一个空的哈希表，为下一次**rehash**做准备；
 
-​	以上步骤的源码参考**dict.c/dictResize**函数。
+​	以上步骤的源码参考 *redis/dict.c/dictResize* 函数。
 
 > **关于扩展与收缩的提示：**
 >
@@ -316,7 +316,7 @@ static void _dictRehashStep(dict *d) {
 
 ​	Redis跳跃表的实现设计有两个角色：**用于表示跳跃表节点的`zskiplistNode`结构** 和 **用于保存跳跃表节点相关信息的`zskiplist`结构**。
 
-​	*源码在server.h*
+​	*源码在 redis/server.h*
 
 #### 跳跃表节点
 
@@ -462,7 +462,7 @@ static intset *intsetUpgradeAndAdd(intset *is, int64_t value) {
 
 ​	压缩列表是Redis为了节约内存而开发的，**是由连续内存块组成的顺序型数据结构**。一个压缩列表可以有多个节点，一个节点可以保存一个字节数组或者一个整数值。值得注意的是，Redis并没有定义压缩列表的数据结构，但是定义了压缩列表节点的数据结构。
 
-​	压缩列表实质上就是一个字符数组，下面是创建压缩列表的源码（/ziplist.c）：
+​	压缩列表实质上就是一个字符数组，下面是创建压缩列表的源码（redis/ziplist.c）：
 
 ```c
 /* Return total bytes a ziplist is composed of. */
@@ -496,7 +496,7 @@ unsigned char *ziplistNew(void) {
 
 #### 压缩列表节点
 
-​	*/ziplist.c/zlentry*
+​	*源码位于 redis/ziplist.c/zlentry*
 
 ```C
 typedef struct zlentry {
@@ -532,17 +532,21 @@ typedef struct zlentry {
 
 ​	连锁更新与节点中的**prevrawlen**属性息息相关，当每个节点的长度都处于255与254的临界点时，一旦有引起变化的条件发生时，**prevrawlen**属性就需要重新分配空间。连锁更新可以看作是多米诺骨牌效应。
 
+
+
 ## 快速列表
 
-​	快速列表（quicklist）是列表键的实现之一。
+​	快速列表（quicklist）是列表键的实现之一。它是链表的“进化版”，内部存有压缩列表，可以说是链表和压缩列表的结合体。
 
 ### 实现
 
 ​	快速列表主要有两个角色，**用于记录快速列表节点相关信息的 `quicklist` 结构** 和 **用于表示快速列表节点的 `quicklistNode` 结构**。
 
+​	*源码位于 redis/quicklist.h*
+
 #### 快速列表节点
 
-​	快速列表节点是一个基于压缩列表的32字节的数据结构。
+​	快速列表节点是一个基于压缩列表的32字节的数据结构。快速列表节点说是保存数据的结构，不如说是管理和保存压缩列表的结构。源码如下所示：
 
 ```c
 typedef struct quicklistNode {
@@ -559,9 +563,25 @@ typedef struct quicklistNode {
 } quicklistNode;
 ```
 
+- ***prev & *next**：前驱指针和后继指针，说明快速列表节点是双向链表的节点；
+- ***zl**：该属性的值是压缩列表，说明快速列表节点是基于压缩列表存储数据的；
+- **sz**：该属性记录压缩列表的字节数总大小；
+- **count**：该属性占16位二进制，记录压缩列表中的节点数量；
+- **encoding**：该属性占2位二进制，表示保存的压缩列表是否压缩了，1表示没有，2表示使用 LZF压缩算法；
+- **container**：该属性占2位二进制，1为预留位，默认为2，表示使用压缩列表数据类型；
+- **recompress**：该属性占1位二进制，用于表示该节点之前是否被压缩过；
+- **attempted_compress**：测试值；
+- **extra**：预留字段；
 
+​	以上对 `quicklistNode` 结构中的字段解释都是基于源码注释给出的信息，具体作用需要研究关于快速列表操作的方法，日后补充。
+
+> Tip：
+>
+> ​	C语言指针在64位系统中占8个字节，32位占4个字节。
 
 #### 快速列表
+
+​	`quicklist` 是一个用于描述（管理）快速列表的40字节（64位系统）的结构。
 
 ```c
 typedef struct quicklist {
@@ -576,7 +596,54 @@ typedef struct quicklist {
 } quicklist;
 ```
 
+- ***head & *tail**：快速列表的头结点和尾节点；
+- **count**：记录快速列表中元素的数量，即所有快速列表节点中的所有压缩列表中的节点（`zlentry`）数量；
+- **len**：记录快速列表中节点（`quicklistNode`）的数量；
+- **fill**：表明每个快速列表节点中压缩列表的长度，为正数时，表明每个压缩列表最多有多少数据节点，为负数时，参见配置文件中的**list-max-ziplist-size**注释；
+- **compress**：代表了两端各有多少个节点不用压缩，此值可参见配置文件中的**list-compress-depth**值；
+- **bookmark_count**：
+- **bookmarks**：
 
+[redis配置文件](https://github.com/redis/redis/blob/unstable/redis.conf)中部分内容：
+
+```shell
+# Lists are also encoded in a special way to save a lot of space.
+# The number of entries allowed per internal list node can be specified
+# as a fixed maximum size or a maximum number of elements.
+# For a fixed maximum size, use -5 through -1, meaning:
+# -5: max size: 64 Kb  <-- not recommended for normal workloads
+# -4: max size: 32 Kb  <-- not recommended
+# -3: max size: 16 Kb  <-- probably not recommended
+# -2: max size: 8 Kb   <-- good
+# -1: max size: 4 Kb   <-- good
+# Positive numbers mean store up to _exactly_ that number of elements
+# per list node.
+# The highest performing option is usually -2 (8 Kb size) or -1 (4 Kb size),
+# but if your use case is unique, adjust the settings as necessary.
+list-max-ziplist-size -2
+
+# Lists may also be compressed.
+# Compress depth is the number of quicklist ziplist nodes from *each* side of
+# the list to *exclude* from compression.  The head and tail of the list
+# are always uncompressed for fast push/pop operations.  Settings are:
+# 0: disable all list compression
+# 1: depth 1 means "don't start compressing until after 1 node into the list,
+#    going from either the head or tail"
+#    So: [head]->node->node->...->node->[tail]
+#    [head], [tail] will always be uncompressed; inner nodes will compress.
+# 2: [head]->[next]->node->node->...->node->[prev]->[tail]
+#    2 here means: don't compress head or head->next or tail->prev or tail,
+#    but compress all nodes between them.
+# 3: [head]->[next]->[next]->node->node->...->node->[prev]->[prev]->[tail]
+# etc.
+list-compress-depth 0
+```
+
+### 总结
+
+​	压缩列表因为其连续的内存存储特性和相关操作的原因，会产生连锁更新的问题，当压缩列表元素过多时，会影响性能。因此在未引入快速列表前，压缩列表元素数量达到一定值时会转为链表存储。而链表又因节点物理地址不连续，容易产生内存碎片的原因，导致读取节点时不能充分利用CPU的局部性原理。
+
+​	为此引入了快速列表这种数据结构。快速列表是压缩列表与链表这两种数据结构的结合，是折中考虑时间效率和空间效率的策略结果。
 
 ## 对象
 
@@ -768,3 +835,7 @@ robj *createRawStringObject(const char *ptr, size_t len) {
 # 参考资料
 
 《Redis设计与实现》——黄健宏著（该书基于redis3.0之前编写）
+
+[redis源码](https://github.com/redis/redis)
+
+[Redis 之快速列表](https://blog.csdn.net/molaifeng/article/details/105499451)
